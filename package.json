@@ -1,0 +1,23 @@
+{
+  "name": "personal-rag-voice-agent",
+  "version": "1.0.0",
+  "description": "Express TypeScript starter with a hello endpoint",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.15.18",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.3"
+  }
+}
