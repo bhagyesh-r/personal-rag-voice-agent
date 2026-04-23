@@ -1,20 +1,38 @@
 import { VOICE_STATES, getVoiceStatusText, stripCitationMarkers } from './voiceHelpers.js';
+import { derivePayloadObjects, formatRelativeTime, truncateSnippet } from './uiHelpers.js';
 
-let sessionId = null;
+const DEFAULT_LIVE_SUMMARY = 'Policy context loaded. Ready for real-time analysis and citation retrieval.';
 
 const dom = {
+  attachButton: document.getElementById('attachButton'),
   chat: document.getElementById('chat'),
   citations: document.getElementById('citations'),
+  composer: document.getElementById('composer'),
   liveInfo: document.getElementById('liveInfo'),
   message: document.getElementById('message'),
   newSessionButton: document.getElementById('newSessionButton'),
+  payloadObjects: document.getElementById('payloadObjects'),
   pdf: document.getElementById('pdf'),
+  personaButton: document.getElementById('personaButton'),
+  resourceProgress: document.getElementById('resourceProgress'),
   sendButton: document.getElementById('sendButton'),
   sessionInfo: document.getElementById('sessionInfo'),
   uploadButton: document.getElementById('uploadButton'),
   uploadStatus: document.getElementById('uploadStatus'),
+  voiceModeLabel: document.getElementById('voiceModeLabel'),
+  voicePanel: document.getElementById('voicePanel'),
   voiceStatus: document.getElementById('voiceStatus'),
-  voiceToggleButton: document.getElementById('voiceToggleButton')
+  voiceToggleButton: document.getElementById('voiceToggleButton'),
+  voiceToggleIcon: document.getElementById('voiceToggleIcon')
+};
+
+const appState = {
+  currentCitations: [],
+  isSending: false,
+  isUploading: false,
+  lastUpload: null,
+  sessionId: null,
+  timestampRefreshId: null
 };
 
 const voiceAssistant = {
@@ -26,55 +44,218 @@ const voiceAssistant = {
   stopRequested: false
 };
 
-function timeAgoLabel() {
-  return 'JUST NOW';
+const VOICE_MODE_LABELS = {
+  [VOICE_STATES.IDLE]: 'Standby',
+  [VOICE_STATES.GREETING]: 'Initializing',
+  [VOICE_STATES.LISTENING]: 'Listening',
+  [VOICE_STATES.PROCESSING]: 'Analyzing',
+  [VOICE_STATES.SPEAKING]: 'Responding',
+  [VOICE_STATES.STOPPED]: 'Stopped'
+};
+
+function setSessionMetadata(sessionId) {
+  appState.sessionId = sessionId || null;
+  dom.sessionInfo.dataset.sessionId = sessionId || '';
+  dom.sessionInfo.title = sessionId || '';
 }
 
-function renderCitations(citations = []) {
-  dom.citations.innerHTML = '';
+function createIcon(name) {
+  const icon = document.createElement('span');
+  icon.className = 'material-symbols-outlined';
+  icon.textContent = name;
+  return icon;
+}
 
-  if (!citations.length) {
-    const empty = document.createElement('div');
-    empty.className = 'citation-card';
-    empty.innerHTML = '<span class="tag">READY</span><h4>No citations yet</h4><p>Sources appear here after an assistant response.</p>';
-    dom.citations.appendChild(empty);
-    return;
+function setComposerBusy(isBusy) {
+  appState.isSending = isBusy;
+  dom.message.disabled = isBusy;
+  dom.sendButton.disabled = isBusy;
+  dom.composer.setAttribute('aria-busy', String(isBusy));
+}
+
+function setUploadUi({ width, message, busy }) {
+  if (typeof width === 'string') {
+    dom.resourceProgress.style.width = width;
   }
 
-  citations.forEach((c) => {
-    const card = document.createElement('div');
-    card.className = 'citation-card';
-    const title = c.id || 'Document excerpt';
-    const page = c.page ?? 'unknown';
-    const score = (c.score ?? 0).toFixed(3);
+  if (typeof message === 'string') {
+    dom.uploadStatus.textContent = message;
+  }
 
-    card.innerHTML = `
-      <span class="tag">VERIFIED</span>
-      <h4>${title}</h4>
-      <p>Context used for answer grounding.</p>
-      <div class="meta">Page ${page} · Score ${score}</div>
-    `;
-    dom.citations.appendChild(card);
+  appState.isUploading = busy;
+  dom.uploadButton.disabled = busy;
+  dom.attachButton.disabled = busy;
+}
+
+function refreshMessageTimestamps() {
+  dom.chat.querySelectorAll('[data-timestamp]').forEach((node) => {
+    node.textContent = formatRelativeTime(node.dataset.timestamp);
   });
 }
 
-function appendMessage(role, text, citations = []) {
+function ensureTimestampRefreshLoop() {
+  if (appState.timestampRefreshId) return;
+  appState.timestampRefreshId = window.setInterval(refreshMessageTimestamps, 30_000);
+}
+
+function createEmptyCard(title, body, badgeText = 'READY') {
+  const card = document.createElement('div');
+  card.className = 'empty-card';
+
+  const badge = document.createElement('span');
+  badge.className = 'citation-badge';
+  badge.textContent = badgeText;
+
+  const heading = document.createElement('h4');
+  heading.textContent = title;
+
+  const copy = document.createElement('p');
+  copy.textContent = body;
+
+  card.append(badge, heading, copy);
+  return card;
+}
+
+function buildCitationMeta(citation) {
+  const parts = [];
+
+  if (citation.page != null) {
+    parts.push(`Page ${citation.page}`);
+  }
+
+  if (citation.chunk != null) {
+    parts.push(`Chunk ${citation.chunk}`);
+  }
+
+  if (typeof citation.score === 'number') {
+    parts.push(`Score ${citation.score.toFixed(3)}`);
+  }
+
+  return parts;
+}
+
+function renderPayloadObjects() {
+  dom.payloadObjects.replaceChildren();
+
+  const items = derivePayloadObjects(appState.currentCitations, appState.lastUpload);
+
+  if (!items.length) {
+    dom.payloadObjects.appendChild(
+      createEmptyCard(
+        'No payload objects yet',
+        'Upload a handbook and ask a question to surface indexed policy assets.',
+        'IDLE'
+      )
+    );
+    return;
+  }
+
+  items.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = 'payload-item';
+
+    const icon = createIcon(item.icon);
+    const copy = document.createElement('div');
+    copy.className = 'payload-copy';
+
+    const heading = document.createElement('h4');
+    heading.textContent = item.label;
+
+    const detail = document.createElement('p');
+    detail.textContent = item.description;
+
+    copy.append(heading, detail);
+    row.append(icon, copy);
+    dom.payloadObjects.appendChild(row);
+  });
+}
+
+function renderCitations(citations = []) {
+  appState.currentCitations = citations;
+  dom.citations.replaceChildren();
+
+  if (!citations.length) {
+    dom.citations.appendChild(
+      createEmptyCard(
+        'No citations yet',
+        'Verified handbook excerpts appear here after an assistant response.'
+      )
+    );
+    renderPayloadObjects();
+    return;
+  }
+
+  citations.forEach((citation) => {
+    const card = document.createElement('div');
+    card.className = 'citation-card';
+
+    const header = document.createElement('div');
+    header.className = 'citation-card-header';
+
+    const badge = document.createElement('span');
+    badge.className = 'citation-badge';
+    badge.textContent = 'Verified';
+
+    const action = createIcon('open_in_new');
+    action.setAttribute('aria-hidden', 'true');
+
+    const title = document.createElement('h4');
+    title.textContent = citation.sourceName || `Document excerpt ${citation.id}`;
+
+    const excerpt = document.createElement('p');
+    excerpt.textContent = truncateSnippet(
+      citation.text || 'Context used for answer grounding.',
+      180
+    );
+
+    const meta = document.createElement('div');
+    meta.className = 'citation-meta';
+
+    buildCitationMeta(citation).forEach((part) => {
+      const chip = document.createElement('span');
+      chip.textContent = part;
+      meta.appendChild(chip);
+    });
+
+    header.append(badge, action);
+    card.append(header, title, excerpt);
+
+    if (meta.childElementCount) {
+      card.appendChild(meta);
+    }
+
+    dom.citations.appendChild(card);
+  });
+
+  renderPayloadObjects();
+}
+
+function appendMessage(role, text, citations = [], { timestamp = new Date().toISOString() } = {}) {
   const row = document.createElement('div');
-  row.className = `msg-row ${role}`;
+  row.className = `message-row ${role}`;
 
-  const bubbleWrap = document.createElement('div');
+  const avatar = document.createElement('div');
+  avatar.className = 'message-avatar';
+  avatar.appendChild(createIcon(role === 'assistant' ? 'hub' : 'person'));
+
+  const stack = document.createElement('div');
+  stack.className = 'message-stack';
+
+  const meta = document.createElement('p');
+  meta.className = 'message-meta';
+  meta.textContent = role === 'assistant' ? 'Assistant' : 'You';
+
   const bubble = document.createElement('div');
-  bubble.className = `msg ${role}`;
-  bubble.innerText = text;
+  bubble.className = 'message-bubble';
+  bubble.textContent = text;
 
-  const stamp = document.createElement('div');
-  stamp.className = 'msg-time';
-  stamp.textContent = timeAgoLabel();
+  const stamp = document.createElement('span');
+  stamp.className = 'message-time';
+  stamp.dataset.timestamp = timestamp;
+  stamp.textContent = formatRelativeTime(timestamp);
 
-  bubbleWrap.appendChild(bubble);
-  bubbleWrap.appendChild(stamp);
-  row.appendChild(bubbleWrap);
-
+  stack.append(meta, bubble, stamp);
+  row.append(avatar, stack);
   dom.chat.appendChild(row);
   dom.chat.scrollTop = dom.chat.scrollHeight;
 
@@ -84,12 +265,18 @@ function appendMessage(role, text, citations = []) {
 }
 
 function syncVoiceControls() {
-  dom.voiceToggleButton.innerText = voiceAssistant.active ? '◼' : '🎤';
+  const isActive = voiceAssistant.active;
+  dom.voiceToggleIcon.textContent = isActive ? 'stop_circle' : 'mic';
+  dom.voiceToggleButton.classList.toggle('is-active', isActive);
+  dom.personaButton.classList.toggle('is-active', isActive);
+  dom.personaButton.setAttribute('aria-pressed', String(isActive));
+  dom.voiceModeLabel.textContent = VOICE_MODE_LABELS[voiceAssistant.state] || 'Standby';
+  dom.voicePanel.dataset.voiceState = voiceAssistant.state;
 }
 
 function setVoiceState(state, detail = '') {
   voiceAssistant.state = state;
-  dom.voiceStatus.innerText = getVoiceStatusText(state, detail);
+  dom.voiceStatus.textContent = getVoiceStatusText(state, detail);
   syncVoiceControls();
 }
 
@@ -120,7 +307,7 @@ function stopRecognition() {
   }
 }
 
-function stopVoiceAssistant(detail = 'You can restart it whenever you are ready.') {
+function stopVoiceAssistant(detail = 'Voice mode paused. You can restart it any time.') {
   voiceAssistant.active = false;
   stopRecognition();
   cancelSpeechOutput();
@@ -141,7 +328,7 @@ function ensureRecognition() {
 
   recognition.onstart = () => {
     if (!voiceAssistant.active) return;
-    setVoiceState(VOICE_STATES.LISTENING);
+    setVoiceState(VOICE_STATES.LISTENING, 'Listening for your next handbook question.');
   };
 
   recognition.onresult = (event) => {
@@ -156,7 +343,7 @@ function ensureRecognition() {
 
     voiceAssistant.heardSpeech = true;
     voiceAssistant.recognitionHandled = true;
-    setVoiceState(VOICE_STATES.PROCESSING);
+    setVoiceState(VOICE_STATES.PROCESSING, 'Checking the indexed handbook.');
     void handleRecognizedQuestion(transcript);
   };
 
@@ -172,12 +359,12 @@ function ensureRecognition() {
     }
 
     if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-      stopVoiceAssistant('Microphone permission was denied. Use text chat or allow microphone access.');
+      stopVoiceAssistant('Microphone permission was denied. Continue with text chat instead.');
       return;
     }
 
     if (event.error === 'audio-capture') {
-      stopVoiceAssistant('No microphone was detected. Connect a microphone or use text chat.');
+      stopVoiceAssistant('No microphone was detected. Connect one or keep using text chat.');
       return;
     }
 
@@ -197,7 +384,7 @@ function ensureRecognition() {
       voiceAssistant.recognitionHandled = true;
       void repromptForAnotherQuestion(
         "I didn't hear anything. Please ask your company policy question again.",
-        'Waiting for you to ask a policy question.'
+        'Waiting for your next question.'
       );
     }
   };
@@ -208,28 +395,30 @@ function ensureRecognition() {
 
 async function newSession() {
   if (voiceAssistant.active) {
-    stopVoiceAssistant('Starting a fresh session.');
+    stopVoiceAssistant('Starting a fresh secure session.');
   }
 
   try {
     const res = await fetch('/api/session', { method: 'POST' });
     const data = await res.json();
-    sessionId = data.sessionId;
-    dom.sessionInfo.innerText = `Session: ${sessionId}`;
-    dom.chat.innerHTML = '';
+    setSessionMetadata(data.sessionId);
+    dom.chat.replaceChildren();
     dom.message.value = '';
     renderCitations([]);
-    appendMessage('assistant', 'System initialized. I am ready to analyze your corporate policy queries. How can I assist you today?');
-    setVoiceState(VOICE_STATES.IDLE, 'Ready to start the voice assistant.');
+    appendMessage(
+      'assistant',
+      'System initialized. I am ready to analyze your corporate policy queries. How can I assist you today?'
+    );
+    setVoiceState(VOICE_STATES.IDLE, 'Ready for voice or text questions.');
+    dom.message.focus();
   } catch (error) {
-    sessionId = null;
-    dom.sessionInfo.innerText = 'Session unavailable';
+    setSessionMetadata('');
     setVoiceState(VOICE_STATES.STOPPED, 'Could not create a session. Refresh and try again.');
   }
 }
 
 async function ensureSessionReady() {
-  if (!sessionId) {
+  if (!appState.sessionId) {
     await newSession();
   }
 }
@@ -237,28 +426,54 @@ async function ensureSessionReady() {
 async function uploadPdf() {
   const file = dom.pdf.files[0];
   if (!file) return;
-  const fd = new FormData();
-  fd.append('file', file);
-  dom.uploadStatus.innerText = 'Indexing policy document...';
+
+  const formData = new FormData();
+  formData.append('file', file);
+  setUploadUi({ width: '62%', message: 'Indexing policy document...', busy: true });
 
   try {
-    const res = await fetch('/api/upload-handbook', { method: 'POST', body: fd });
+    const res = await fetch('/api/upload-handbook', {
+      method: 'POST',
+      body: formData
+    });
     const data = await res.json();
+
     if (!res.ok) {
-      dom.uploadStatus.innerText = data.error || 'Upload failed';
+      setUploadUi({
+        width: appState.lastUpload ? '100%' : '24%',
+        message: data.error || 'Upload failed.',
+        busy: false
+      });
       return;
     }
 
-    dom.uploadStatus.innerText = `Loaded ${data.pages} pages / ${data.chunks} chunks`;
+    appState.lastUpload = {
+      documentName: data.documentName || file.name,
+      pages: data.pages,
+      chunks: data.chunks
+    };
+
+    setUploadUi({
+      width: '100%',
+      message: `${appState.lastUpload.documentName} indexed · ${data.pages} pages · ${data.chunks} chunks`,
+      busy: false
+    });
+    renderPayloadObjects();
   } catch (error) {
-    dom.uploadStatus.innerText = 'Upload failed';
+    setUploadUi({
+      width: appState.lastUpload ? '100%' : '24%',
+      message: 'Upload failed. Please try again.',
+      busy: false
+    });
+  } finally {
+    dom.pdf.value = '';
   }
 }
 
 async function submitQuestion(message) {
   await ensureSessionReady();
 
-  if (!sessionId) {
+  if (!appState.sessionId) {
     const fallbackText = 'A session could not be created, so the handbook answer is unavailable right now.';
     appendMessage('assistant', fallbackText);
     return {
@@ -270,18 +485,18 @@ async function submitQuestion(message) {
 
   appendMessage('user', message);
   dom.message.value = '';
+  setComposerBusy(true);
 
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, message })
+      body: JSON.stringify({ sessionId: appState.sessionId, message })
     });
     const data = await res.json();
 
-    const answerText = res.ok ? data.text : data.error || 'Something went wrong';
+    const answerText = res.ok ? data.text : data.error || 'Something went wrong.';
     const citations = res.ok ? data.citations || [] : [];
-
     appendMessage('assistant', answerText, citations);
 
     return {
@@ -297,12 +512,15 @@ async function submitQuestion(message) {
       text: fallbackText,
       citations: []
     };
+  } finally {
+    setComposerBusy(false);
+    dom.message.focus();
   }
 }
 
 async function sendMessage() {
   const message = dom.message.value.trim();
-  if (!message) return;
+  if (!message || appState.isSending) return;
   await submitQuestion(message);
 }
 
@@ -310,20 +528,17 @@ async function loadLiveInfo() {
   try {
     const res = await fetch('/api/live-config');
     const data = await res.json();
-    dom.liveInfo.innerText = data.note || 'Policy context loaded. Ready for real-time analysis and citation retrieval.';
+    dom.liveInfo.textContent = DEFAULT_LIVE_SUMMARY;
+    dom.liveInfo.title = data.note || DEFAULT_LIVE_SUMMARY;
   } catch (error) {
-    dom.liveInfo.innerText = 'Voice setup info is unavailable right now, but text chat can still work.';
+    dom.liveInfo.textContent = 'Voice setup info is unavailable right now, but text chat still works.';
   }
 }
 
 function speakText(text, state = VOICE_STATES.SPEAKING, detail = '') {
   const spokenText = stripCitationMarkers(text);
 
-  if (!spokenText) {
-    return Promise.resolve();
-  }
-
-  if (!hasSpeechSynthesisSupport()) {
+  if (!spokenText || !hasSpeechSynthesisSupport()) {
     return Promise.resolve();
   }
 
@@ -358,7 +573,7 @@ function startListening() {
   voiceAssistant.heardSpeech = false;
   voiceAssistant.recognitionHandled = false;
   voiceAssistant.stopRequested = false;
-  setVoiceState(VOICE_STATES.LISTENING);
+  setVoiceState(VOICE_STATES.LISTENING, 'Listening for your next handbook question.');
 
   try {
     recognition.start();
@@ -378,7 +593,7 @@ async function repromptForAnotherQuestion(promptText, detail) {
   if (hasSpeechSynthesisSupport()) {
     await speakText(promptText, VOICE_STATES.SPEAKING, detail);
   } else {
-    setVoiceState(VOICE_STATES.LISTENING, `${detail} Speech playback is unavailable, so follow the chat and keep speaking.`);
+    setVoiceState(VOICE_STATES.LISTENING, `${detail} Speech playback is unavailable.`);
   }
 
   if (voiceAssistant.active) {
@@ -390,7 +605,6 @@ async function handleRecognizedQuestion(transcript) {
   if (!voiceAssistant.active) return;
 
   dom.message.value = transcript;
-
   const result = await submitQuestion(transcript);
   if (!voiceAssistant.active) return;
 
@@ -407,7 +621,7 @@ async function handleRecognizedQuestion(transcript) {
   } else {
     setVoiceState(
       VOICE_STATES.LISTENING,
-      'Speech playback is unavailable, so the answer is shown in chat. Ask another policy question when ready.'
+      'Speech playback is unavailable, so the answer is shown in chat.'
     );
   }
 
@@ -428,7 +642,7 @@ async function startVoiceAssistant() {
   }
 
   await ensureSessionReady();
-  if (!sessionId) {
+  if (!appState.sessionId) {
     setVoiceState(VOICE_STATES.STOPPED, 'Could not create a session for voice mode. Please try again.');
     return;
   }
@@ -446,7 +660,7 @@ async function startVoiceAssistant() {
   } else {
     setVoiceState(
       VOICE_STATES.GREETING,
-      'Speech playback is unavailable, so I will listen and show answers in chat.'
+      'Speech playback is unavailable, so answers will stay in the transcript.'
     );
   }
 
@@ -458,25 +672,34 @@ async function startVoiceAssistant() {
 dom.newSessionButton.addEventListener('click', () => {
   void newSession();
 });
+
 dom.uploadButton.addEventListener('click', () => {
   dom.pdf.click();
 });
+
+dom.attachButton.addEventListener('click', () => {
+  dom.pdf.click();
+});
+
 dom.pdf.addEventListener('change', () => {
   void uploadPdf();
 });
-dom.sendButton.addEventListener('click', () => {
+
+dom.composer.addEventListener('submit', (event) => {
+  event.preventDefault();
   void sendMessage();
 });
+
 dom.voiceToggleButton.addEventListener('click', () => {
   void startVoiceAssistant();
 });
-dom.message.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter' && !event.shiftKey) {
-    event.preventDefault();
-    void sendMessage();
-  }
+
+dom.personaButton.addEventListener('click', () => {
+  void startVoiceAssistant();
 });
 
+ensureTimestampRefreshLoop();
+setUploadUi({ width: '24%', message: 'No handbook indexed yet.', busy: false });
 setVoiceState(VOICE_STATES.IDLE, 'Loading session...');
 void newSession();
 void loadLiveInfo();

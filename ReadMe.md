@@ -38,6 +38,12 @@ cp .env.example .env
 - `PINECONE_API_KEY`
 - `PINECONE_INDEX`
 
+Optional Gemini resiliency settings:
+
+- `CHAT_MODEL_FALLBACK` to try a second Gemini model if the primary model stays overloaded
+- `GEMINI_MAX_RETRIES` to control transient retry attempts for Gemini chat calls
+- `GEMINI_RETRY_BASE_MS` to control the base exponential backoff delay in milliseconds
+
 For OpenAI's native API, use the raw embedding model ID in `.env`, for example:
 
 ```bash

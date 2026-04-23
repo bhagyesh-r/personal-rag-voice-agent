@@ -1,4 +1,5 @@
 import fs from 'fs/promises';
+import path from 'path';
 import pdf from 'pdf-parse';
 import { v4 as uuidv4 } from 'uuid';
 import { chunkText } from './chunking.js';
@@ -23,9 +24,10 @@ export async function extractPdfPages(filePath) {
   return pages;
 }
 
-export async function indexHandbookPdf(filePath) {
+export async function indexHandbookPdf(filePath, { sourceName } = {}) {
   const pages = await extractPdfPages(filePath);
   const vectors = [];
+  const documentName = sourceName || path.basename(filePath);
 
   for (const page of pages) {
     const chunks = chunkText(page.text);
@@ -41,12 +43,13 @@ export async function indexHandbookPdf(filePath) {
           text: chunk,
           page: page.pageNumber,
           chunk: i + 1,
-          source: filePath
+          source: filePath,
+          sourceName: documentName
         }
       });
     }
   }
 
   await upsertVectors(vectors);
-  return { pages: pages.length, chunks: vectors.length };
+  return { pages: pages.length, chunks: vectors.length, documentName };
 }

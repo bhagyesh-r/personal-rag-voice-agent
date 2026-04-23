@@ -6,6 +6,7 @@ import { indexHandbookPdf } from '../services/ingest.js';
 import { addMessage, ensureSession, getSession } from '../services/sessionStore.js';
 import { answerFromHandbook } from '../services/chat.js';
 import { config } from '../config.js';
+import { isGeminiApiError, normalizeGeminiError } from '../services/gemini.js';
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -40,7 +41,9 @@ apiRouter.post('/upload-handbook', upload.single('file'), async (req, res, next)
       return res.status(400).json({ error: 'Only PDF files are supported in this MVP.' });
     }
 
-    const stats = await indexHandbookPdf(req.file.path);
+    const stats = await indexHandbookPdf(req.file.path, {
+      sourceName: req.file.originalname
+    });
     return res.json({ ok: true, ...stats });
   } catch (error) {
     return next(toApiError(error, 'Failed to index the uploaded PDF.'));
@@ -74,6 +77,10 @@ apiRouter.post('/chat', async (req, res, next) => {
 
     return res.json(result);
   } catch (error) {
+    if (isGeminiApiError(error)) {
+      return next(normalizeGeminiError(error, 'Failed to answer from handbook context.'));
+    }
+
     return next(toApiError(error, 'Failed to answer from handbook context.'));
   }
 });

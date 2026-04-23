@@ -4,117 +4,194 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PolicyAssistant AI</title>
-    <style>
-      :root {
-        --bg-main: #020922;
-        --border: #122543;
-        --text: #e8f2ff;
-      }
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-        background: radial-gradient(circle at 50% 40%, #07244f 0%, var(--bg-main) 35%);
-        color: var(--text);
-        height: 100vh;
-        overflow: hidden;
-      }
-      .app { display: grid; grid-template-columns: 300px 1fr 260px; grid-template-rows: 80px 1fr; height: 100vh; border: 1px solid #0f2240; }
-      .topbar { grid-column: 1 / 4; display: flex; align-items: center; justify-content: space-between; padding: 16px 28px; background: rgba(1, 10, 34, 0.95); border-bottom: 1px solid var(--border); }
-      .brand { display: flex; gap: 10px; align-items: center; font-weight: 700; font-size: 38px; }
-      .brand-badge { width: 42px; height: 42px; border-radius: 4px; background: linear-gradient(135deg, #2ce3bf, #3db0cc); }
-      .top-actions { display: flex; align-items: center; gap: 10px; }
-      .status-pill { border: 1px solid #1a5d65; border-radius: 24px; background: #052938; color: #52ebcb; padding: 8px 20px; font-weight: 600; }
-      .top-text { color: #7e95b8; font-size: 14px; }
-      .left, .center, .right { background: rgba(3, 11, 37, 0.95); }
-      .left { border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 18px 16px; gap: 14px; }
-      .nav-item { padding: 12px 16px; border-radius: 16px; color: #9eb4cf; font-size: 34px; }
-      .nav-item.active { background: #07293f; color: #45e9d0; }
-      .spacer { flex: 1; }
-      .upload { width: 100%; border: none; border-radius: 22px; padding: 18px; background: linear-gradient(135deg, #33e0cf, #3bc5de); color: #031023; font-size: 34px; font-weight: 700; cursor: pointer; }
-      #pdf { display: none; }
-      .resource { border: 1px solid #1a2f53; border-radius: 16px; padding: 16px; color: #8096b7; }
-      .resource-title { font-size: 22px; margin-bottom: 10px; letter-spacing: 1px; }
-      .bar { height: 8px; border-radius: 8px; background: #203454; overflow: hidden; }
-      .bar > span { display: block; width: 28%; height: 100%; background: #30d6c8; }
-      .center { border-right: 1px solid var(--border); padding: 20px; display: grid; grid-template-columns: minmax(460px, 1fr) minmax(380px, 520px); gap: 20px; }
-      .chat-col { display: grid; grid-template-rows: 1fr auto; gap: 16px; min-height: 0; }
-      .chat { border: 1px solid #112747; border-radius: 18px; padding: 20px; overflow: auto; background: linear-gradient(180deg, #021133, #020d2a); }
-      .msg-row { margin-bottom: 18px; display: flex; }
-      .msg-row.user { justify-content: flex-end; }
-      .msg { max-width: 80%; border-radius: 18px; padding: 16px 18px; border: 1px solid #18466f; background: #07243f; line-height: 1.5; font-size: 30px; white-space: pre-wrap; }
-      .msg.user { background: #1a2b45; border-color: #2c466d; }
-      .msg-time { margin-top: 6px; color: #6f88ad; font-size: 20px; }
-      .input-wrap { border: 1px solid #1a2f53; border-radius: 18px; background: #0b1838; display: flex; gap: 10px; align-items: center; padding: 8px 10px; }
-      #message { flex: 1; resize: none; border: none; background: transparent; color: var(--text); font-size: 30px; min-height: 56px; outline: none; }
-      .icon-btn, .send { border: none; border-radius: 14px; width: 54px; height: 54px; font-size: 24px; color: #8aa2c4; background: #162a4a; cursor: pointer; }
-      .send { background: linear-gradient(135deg, #2fe0c5, #34c5de); color: #09213b; font-weight: 800; }
-      .focus { border: 1px solid #123b53; border-radius: 140px; background: radial-gradient(circle at 50% 35%, rgba(43, 210, 183, 0.25), rgba(3, 18, 45, 0.9) 70%); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 18px; }
-      .orb { width: 220px; height: 220px; border-radius: 50%; border: 1px solid #1e6079; background: radial-gradient(circle at 50% 40%, #0f2f50, #061730); }
-      .focus h2 { margin: 0; font-size: 48px; }
-      .focus p { margin: 0; color: #93abc7; text-align: center; font-size: 31px; max-width: 360px; }
-      .right { padding: 16px; display: flex; flex-direction: column; }
-      .citation-header { border: 1px solid #1a2f53; border-radius: 16px; padding: 14px; margin-bottom: 16px; }
-      .citation-header h3 { margin: 0 0 8px; letter-spacing: 1px; font-size: 32px; }
-      .citation-header p { margin: 0; color: #7f95b5; font-size: 24px; }
-      .citation-list { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 12px; }
-      .citation-card { border: 1px solid #1a2f53; border-radius: 16px; padding: 14px; background: #0a1735; }
-      .tag { display: inline-block; background: #0f3248; color: #58ebcf; padding: 4px 8px; border-radius: 6px; font-size: 18px; font-weight: 700; }
-      .citation-card h4 { font-size: 27px; margin: 10px 0 6px; }
-      .citation-card p { margin: 0; color: #91a8c7; font-style: italic; font-size: 24px; }
-      .meta { margin-top: 8px; color: #6c84a8; font-size: 20px; }
-      .upload-status { color: #66e9d2; font-size: 24px; min-height: 1.2em; }
-      .export { margin-top: 16px; border: 1px solid #1f365b; border-radius: 12px; padding: 12px; text-align: center; color: #c8d8f0; }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@400&display=swap"
+    />
+    <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="app">
+    <div class="app-shell">
       <header class="topbar">
-        <div class="brand"><span class="brand-badge"></span>PolicyAssistant AI</div>
-        <div class="top-actions">
-          <div class="status-pill">●&nbsp; Core Online</div>
-          <div class="top-text" id="sessionInfo"></div>
+        <div class="brand">
+          <div class="brand-badge" aria-hidden="true">
+            <span class="material-symbols-outlined">bolt</span>
+          </div>
+          <span class="brand-label">PolicyAssistant AI</span>
+        </div>
+        <div class="topbar-actions">
+          <div class="status-pill">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span>Core Online</span>
+          </div>
+          <button
+            class="chrome-button"
+            type="button"
+            disabled
+            aria-disabled="true"
+            title="Notifications are not available in this version."
+          >
+            <span class="material-symbols-outlined">notifications</span>
+          </button>
+          <button
+            class="chrome-button"
+            type="button"
+            disabled
+            aria-disabled="true"
+            title="Settings are not available in this version."
+          >
+            <span class="material-symbols-outlined">settings</span>
+          </button>
+          <div id="sessionInfo" hidden aria-hidden="true"></div>
         </div>
       </header>
-      <aside class="left">
-        <div class="nav-item active">✦&nbsp;&nbsp;Assistant</div>
-        <div class="nav-item">⌘&nbsp;&nbsp;History</div>
-        <div class="nav-item">▣&nbsp;&nbsp;Library</div>
-        <div class="spacer"></div>
-        <button class="upload" id="uploadButton" type="button">⬆ Upload Document</button>
-        <input id="pdf" type="file" accept="application/pdf" />
-        <div class="upload-status" id="uploadStatus"></div>
-        <div class="resource">
-          <div class="resource-title">RESOURCE LOAD</div>
-          <div class="bar"><span></span></div>
+
+      <aside class="sidebar">
+        <nav class="sidebar-nav" aria-label="Primary">
+          <button class="nav-button active" type="button" aria-current="page">
+            <span class="material-symbols-outlined">auto_awesome</span>
+            <span class="nav-label">Assistant</span>
+          </button>
+          <button
+            class="nav-button"
+            type="button"
+            disabled
+            aria-disabled="true"
+            title="History is not available in this version."
+          >
+            <span class="material-symbols-outlined">history_edu</span>
+            <span class="nav-label">History</span>
+          </button>
+          <button
+            class="nav-button"
+            type="button"
+            disabled
+            aria-disabled="true"
+            title="Library is not available in this version."
+          >
+            <span class="material-symbols-outlined">folder_special</span>
+            <span class="nav-label">Library</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-upload">
+          <button class="upload-button" id="uploadButton" type="button">
+            <span class="material-symbols-outlined">cloud_upload</span>
+            <span class="upload-label">Upload Document</span>
+          </button>
+          <input id="pdf" class="hidden-input" type="file" accept="application/pdf" />
+        </div>
+
+        <div class="resource-card">
+          <p class="panel-eyebrow">Resource Load</p>
+          <div class="resource-bar" aria-hidden="true">
+            <span id="resourceProgress"></span>
+          </div>
+          <p class="resource-status" id="uploadStatus">No handbook indexed yet.</p>
         </div>
       </aside>
-      <main class="center">
-        <section class="chat-col">
-          <div class="chat" id="chat"></div>
-          <div class="input-wrap">
-            <button class="icon-btn" id="newSessionButton" title="New Session" type="button">⟳</button>
-            <button class="icon-btn" id="voiceToggleButton" title="Toggle Voice" type="button">🎤</button>
-            <textarea id="message" rows="1" placeholder="Type your directive or policy question..."></textarea>
-            <button class="send" id="sendButton" type="button">➤</button>
+
+      <main class="workspace">
+        <section class="transcript-panel">
+          <div class="transcript-toolbar">
+            <div>
+              <p class="panel-eyebrow">Live Transcript</p>
+              <h1 class="panel-title">Assistant</h1>
+            </div>
+            <button class="toolbar-button" id="newSessionButton" type="button" title="Start a new session">
+              <span class="material-symbols-outlined">refresh</span>
+              <span class="toolbar-label">New Session</span>
+            </button>
+          </div>
+
+          <div class="transcript" id="chat" aria-live="polite"></div>
+
+          <div class="composer-wrap">
+            <form class="composer" id="composer" autocomplete="off">
+              <button class="composer-icon" id="attachButton" type="button" title="Upload a PDF">
+                <span class="material-symbols-outlined">attach_file</span>
+              </button>
+              <input
+                id="message"
+                type="text"
+                placeholder="Type your directive or policy query..."
+                autocomplete="off"
+              />
+              <div class="composer-actions">
+                <button class="composer-icon voice-button" id="voiceToggleButton" type="button" title="Toggle voice mode">
+                  <span class="material-symbols-outlined" id="voiceToggleIcon">mic</span>
+                </button>
+                <button class="send-button" id="sendButton" type="submit" title="Send message">
+                  <span class="material-symbols-outlined">send</span>
+                </button>
+              </div>
+            </form>
           </div>
         </section>
-        <section class="focus">
-          <div class="orb"></div>
-          <h2>Active Intelligence</h2>
-          <p id="liveInfo">Loading policy context...</p>
-          <p id="voiceStatus">Voice assistant is off.</p>
+
+        <section class="persona-panel" id="voicePanel" data-voice-state="idle">
+          <div class="persona-stage">
+            <button
+              class="persona-core"
+              id="personaButton"
+              type="button"
+              aria-label="Toggle voice assistant"
+              aria-pressed="false"
+            >
+              <div class="voice-bars" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </button>
+
+            <div class="persona-copy">
+              <p class="persona-kicker" id="voiceModeLabel">Standby</p>
+              <h2>Active Intelligence</h2>
+              <p id="liveInfo">Loading policy context...</p>
+              <p class="voice-detail" id="voiceStatus">Voice assistant is off.</p>
+            </div>
+          </div>
         </section>
+
+        <aside class="reference-rail">
+          <div class="reference-header">
+            <div class="reference-title">
+              <span class="material-symbols-outlined">verified</span>
+              <h3>Citations</h3>
+            </div>
+            <p>Verified sources for current response context.</p>
+          </div>
+
+          <div class="citation-list" id="citations"></div>
+
+          <div class="payload-section">
+            <p class="panel-eyebrow">Payload Objects</p>
+            <div class="payload-list" id="payloadObjects"></div>
+          </div>
+
+          <button
+            class="export-button"
+            type="button"
+            disabled
+            aria-disabled="true"
+            title="Export is not available in this version."
+          >
+            <span class="material-symbols-outlined">download</span>
+            <span>Export Report</span>
+          </button>
+        </aside>
       </main>
-      <aside class="right">
-        <div class="citation-header">
-          <h3>✹&nbsp; CITATIONS</h3>
-          <p>Verified sources for current response context.</p>
-        </div>
-        <div class="citation-list" id="citations"></div>
-        <div class="export">⇪ Export Report</div>
-      </aside>
     </div>
+
     <script type="module" src="/main.js"></script>
   </body>
 </html>

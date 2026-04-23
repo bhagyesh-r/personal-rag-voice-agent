@@ -1,6 +1,8 @@
 import { GoogleGenAI } from '@google/genai';
 import { config } from '../config.js';
 import { embedText } from './embedding.js';
+import { serializeCitation } from './citationSerializer.js';
+import { generateContentWithRetry } from './gemini.js';
 import { queryVectors } from './pinecone.js';
 
 const ai = new GoogleGenAI({ apiKey: config.geminiApiKey });
@@ -37,18 +39,21 @@ export async function answerFromHandbook({ message, history }) {
 
   const prompt = buildPrompt({ message, contextChunks: matches, history });
 
-  const response = await ai.models.generateContent({
+  const response = await generateContentWithRetry({
     model: config.chatModel,
-    contents: prompt
+    fallbackModel: config.chatModelFallback,
+    maxRetries: config.geminiMaxRetries,
+    baseDelayMs: config.geminiRetryBaseMs,
+    contents: prompt,
+    generateContent: ({ model, contents }) =>
+      ai.models.generateContent({
+        model,
+        contents
+      })
   });
 
   const text = response.text || "I couldn't find that in the handbook.";
-  const citations = matches.map((m, i) => ({
-    id: i + 1,
-    page: m.metadata?.page,
-    score: m.score,
-    text: m.metadata?.text
-  }));
+  const citations = matches.map(serializeCitation);
 
   return { text, citations };
 }

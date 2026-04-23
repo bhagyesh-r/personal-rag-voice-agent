@@ -8,6 +8,9 @@ export const config = {
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   liveModel: process.env.LIVE_MODEL || 'gemini-3.1-flash-live-preview',
   chatModel: process.env.CHAT_MODEL || 'gemini-2.5-flash',
+  chatModelFallback: process.env.CHAT_MODEL_FALLBACK || '',
+  geminiMaxRetries: Number(process.env.GEMINI_MAX_RETRIES || 2),
+  geminiRetryBaseMs: Number(process.env.GEMINI_RETRY_BASE_MS || 750),
   embeddingApiKey: process.env.EMBEDDING_API_KEY || '',
   embeddingBaseUrl: process.env.EMBEDDING_BASE_URL || 'https://api.openai.com/v1',
   embeddingModel: process.env.EMBEDDING_MODEL || 'text-embedding-3-small',
@@ -36,6 +39,14 @@ export function validateConfig() {
 
   if (!Number.isInteger(config.embeddingDimensions) || config.embeddingDimensions <= 0) {
     throw new Error('EMBEDDING_DIMENSIONS must be a positive integer.');
+  }
+
+  if (!Number.isInteger(config.geminiMaxRetries) || config.geminiMaxRetries < 0) {
+    throw new Error('GEMINI_MAX_RETRIES must be a non-negative integer.');
+  }
+
+  if (!Number.isInteger(config.geminiRetryBaseMs) || config.geminiRetryBaseMs <= 0) {
+    throw new Error('GEMINI_RETRY_BASE_MS must be a positive integer.');
   }
 }
 
