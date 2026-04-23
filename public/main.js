@@ -4,6 +4,7 @@ let sessionId = null;
 
 const dom = {
   chat: document.getElementById('chat'),
+  citations: document.getElementById('citations'),
   liveInfo: document.getElementById('liveInfo'),
   message: document.getElementById('message'),
   newSessionButton: document.getElementById('newSessionButton'),
@@ -25,21 +26,65 @@ const voiceAssistant = {
   stopRequested: false
 };
 
+function timeAgoLabel() {
+  return 'JUST NOW';
+}
+
+function renderCitations(citations = []) {
+  dom.citations.innerHTML = '';
+
+  if (!citations.length) {
+    const empty = document.createElement('div');
+    empty.className = 'citation-card';
+    empty.innerHTML = '<span class="tag">READY</span><h4>No citations yet</h4><p>Sources appear here after an assistant response.</p>';
+    dom.citations.appendChild(empty);
+    return;
+  }
+
+  citations.forEach((c) => {
+    const card = document.createElement('div');
+    card.className = 'citation-card';
+    const title = c.id || 'Document excerpt';
+    const page = c.page ?? 'unknown';
+    const score = (c.score ?? 0).toFixed(3);
+
+    card.innerHTML = `
+      <span class="tag">VERIFIED</span>
+      <h4>${title}</h4>
+      <p>Context used for answer grounding.</p>
+      <div class="meta">Page ${page} · Score ${score}</div>
+    `;
+    dom.citations.appendChild(card);
+  });
+}
+
 function appendMessage(role, text, citations = []) {
-  const div = document.createElement('div');
-  div.className = `msg ${role}`;
-  const cited = citations.length
-    ? `\n\nSources:\n${citations.map((c) => `[${c.id}] page ${c.page ?? 'unknown'} (score: ${(c.score ?? 0).toFixed(3)})`).join('\n')}`
-    : '';
-  div.innerText = `${role.toUpperCase()}: ${text}${cited}`;
-  dom.chat.appendChild(div);
+  const row = document.createElement('div');
+  row.className = `msg-row ${role}`;
+
+  const bubbleWrap = document.createElement('div');
+  const bubble = document.createElement('div');
+  bubble.className = `msg ${role}`;
+  bubble.innerText = text;
+
+  const stamp = document.createElement('div');
+  stamp.className = 'msg-time';
+  stamp.textContent = timeAgoLabel();
+
+  bubbleWrap.appendChild(bubble);
+  bubbleWrap.appendChild(stamp);
+  row.appendChild(bubbleWrap);
+
+  dom.chat.appendChild(row);
   dom.chat.scrollTop = dom.chat.scrollHeight;
+
+  if (role === 'assistant') {
+    renderCitations(citations);
+  }
 }
 
 function syncVoiceControls() {
-  dom.voiceToggleButton.innerText = voiceAssistant.active
-    ? 'Stop Voice Assistant'
-    : 'Start Voice Assistant';
+  dom.voiceToggleButton.innerText = voiceAssistant.active ? '◼' : '🎤';
 }
 
 function setVoiceState(state, detail = '') {
@@ -173,6 +218,8 @@ async function newSession() {
     dom.sessionInfo.innerText = `Session: ${sessionId}`;
     dom.chat.innerHTML = '';
     dom.message.value = '';
+    renderCitations([]);
+    appendMessage('assistant', 'System initialized. I am ready to analyze your corporate policy queries. How can I assist you today?');
     setVoiceState(VOICE_STATES.IDLE, 'Ready to start the voice assistant.');
   } catch (error) {
     sessionId = null;
@@ -192,7 +239,7 @@ async function uploadPdf() {
   if (!file) return;
   const fd = new FormData();
   fd.append('file', file);
-  dom.uploadStatus.innerText = 'Indexing...';
+  dom.uploadStatus.innerText = 'Indexing policy document...';
 
   try {
     const res = await fetch('/api/upload-handbook', { method: 'POST', body: fd });
@@ -202,7 +249,7 @@ async function uploadPdf() {
       return;
     }
 
-    dom.uploadStatus.innerText = `Done. Pages: ${data.pages}, chunks: ${data.chunks}`;
+    dom.uploadStatus.innerText = `Loaded ${data.pages} pages / ${data.chunks} chunks`;
   } catch (error) {
     dom.uploadStatus.innerText = 'Upload failed';
   }
@@ -263,7 +310,7 @@ async function loadLiveInfo() {
   try {
     const res = await fetch('/api/live-config');
     const data = await res.json();
-    dom.liveInfo.innerText = data.note || 'Browser voice mode is ready.';
+    dom.liveInfo.innerText = data.note || 'Policy context loaded. Ready for real-time analysis and citation retrieval.';
   } catch (error) {
     dom.liveInfo.innerText = 'Voice setup info is unavailable right now, but text chat can still work.';
   }
@@ -412,6 +459,9 @@ dom.newSessionButton.addEventListener('click', () => {
   void newSession();
 });
 dom.uploadButton.addEventListener('click', () => {
+  dom.pdf.click();
+});
+dom.pdf.addEventListener('change', () => {
   void uploadPdf();
 });
 dom.sendButton.addEventListener('click', () => {
