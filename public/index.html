@@ -3,52 +3,341 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Handbook Voice RAG Assistant</title>
+    <title>PolicyAssistant AI</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
-      .container { max-width: 980px; margin: 0 auto; padding: 20px; }
-      .card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-      button { padding: 8px 12px; border-radius: 8px; border: 0; cursor: pointer; }
-      input, textarea { width: 100%; margin-top: 8px; background: #0b1220; border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; padding: 10px; }
-      .row { display: flex; gap: 8px; align-items: center; }
-      .chat { max-height: 420px; overflow: auto; }
-      .msg { padding: 10px; border-radius: 8px; margin-bottom: 8px; }
-      .user { background: #1d4ed8; }
-      .assistant { background: #065f46; }
-      .citations { font-size: 12px; color: #cbd5e1; white-space: pre-wrap; }
+      :root {
+        --bg-main: #020922;
+        --bg-panel: #060f2b;
+        --bg-panel-soft: #0a1736;
+        --border: #122543;
+        --text: #e8f2ff;
+        --text-dim: #7e95b8;
+        --teal: #35dbc8;
+        --teal-soft: #1cbdb0;
+        --pill: #0b2e42;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: radial-gradient(circle at 50% 40%, #07244f 0%, var(--bg-main) 35%);
+        color: var(--text);
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      .app {
+        display: grid;
+        grid-template-columns: 300px 1fr 260px;
+        grid-template-rows: 80px 1fr;
+        height: 100vh;
+        border: 1px solid #0f2240;
+      }
+
+      .topbar {
+        grid-column: 1 / 4;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 28px;
+        background: rgba(1, 10, 34, 0.95);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .brand {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        font-weight: 700;
+        font-size: 38px;
+      }
+
+      .brand-badge {
+        width: 42px;
+        height: 42px;
+        border-radius: 4px;
+        background: linear-gradient(135deg, #2ce3bf, #3db0cc);
+      }
+
+      .top-actions { display: flex; align-items: center; gap: 16px; }
+
+      .status-pill {
+        border: 1px solid #1a5d65;
+        border-radius: 24px;
+        background: #052938;
+        color: #52ebcb;
+        padding: 8px 20px;
+        font-weight: 600;
+      }
+
+      .left, .center, .right {
+        background: rgba(3, 11, 37, 0.95);
+      }
+
+      .left {
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        padding: 18px 16px;
+        gap: 14px;
+      }
+
+      .nav-item {
+        padding: 12px 16px;
+        border-radius: 16px;
+        color: #9eb4cf;
+        font-size: 34px;
+      }
+
+      .nav-item.active {
+        background: #07293f;
+        color: #45e9d0;
+      }
+
+      .spacer { flex: 1; }
+
+      .upload {
+        width: 100%;
+        border: none;
+        border-radius: 22px;
+        padding: 18px;
+        background: linear-gradient(135deg, #33e0cf, #3bc5de);
+        color: #031023;
+        font-size: 34px;
+        font-weight: 700;
+      }
+
+      #pdf { display: none; }
+
+      .resource {
+        border: 1px solid #1a2f53;
+        border-radius: 16px;
+        padding: 16px;
+        color: #8096b7;
+      }
+
+      .resource-title { font-size: 22px; margin-bottom: 10px; letter-spacing: 1px; }
+      .bar { height: 8px; border-radius: 8px; background: #203454; overflow: hidden; }
+      .bar > span { display: block; width: 28%; height: 100%; background: #30d6c8; }
+
+      .center {
+        border-right: 1px solid var(--border);
+        padding: 20px;
+        display: grid;
+        grid-template-columns: minmax(460px, 1fr) minmax(380px, 520px);
+        gap: 20px;
+      }
+
+      .chat-col {
+        display: grid;
+        grid-template-rows: 1fr auto;
+        gap: 16px;
+        min-height: 0;
+      }
+
+      .chat {
+        border: 1px solid #112747;
+        border-radius: 18px;
+        padding: 20px;
+        overflow: auto;
+        background: linear-gradient(180deg, #021133, #020d2a);
+      }
+
+      .msg-row { margin-bottom: 18px; display: flex; }
+      .msg-row.user { justify-content: flex-end; }
+
+      .msg {
+        max-width: 80%;
+        border-radius: 18px;
+        padding: 16px 18px;
+        border: 1px solid #18466f;
+        background: #07243f;
+        line-height: 1.5;
+        font-size: 30px;
+        white-space: pre-wrap;
+      }
+
+      .msg.user {
+        background: #1a2b45;
+        border-color: #2c466d;
+      }
+
+      .msg-time {
+        margin-top: 6px;
+        color: #6f88ad;
+        font-size: 20px;
+      }
+
+      .input-wrap {
+        border: 1px solid #1a2f53;
+        border-radius: 18px;
+        background: #0b1838;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        padding: 8px 10px;
+      }
+
+      #message {
+        flex: 1;
+        resize: none;
+        border: none;
+        background: transparent;
+        color: var(--text);
+        font-size: 30px;
+        min-height: 56px;
+        outline: none;
+      }
+
+      .icon-btn, .send {
+        border: none;
+        border-radius: 14px;
+        width: 54px;
+        height: 54px;
+        font-size: 24px;
+        color: #8aa2c4;
+        background: #162a4a;
+      }
+
+      .send {
+        background: linear-gradient(135deg, #2fe0c5, #34c5de);
+        color: #09213b;
+        font-weight: 800;
+      }
+
+      .focus {
+        border: 1px solid #123b53;
+        border-radius: 140px;
+        background: radial-gradient(circle at 50% 35%, rgba(43, 210, 183, 0.25), rgba(3, 18, 45, 0.9) 70%);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 18px;
+      }
+
+      .orb {
+        width: 220px;
+        height: 220px;
+        border-radius: 50%;
+        border: 1px solid #1e6079;
+        background: radial-gradient(circle at 50% 40%, #0f2f50, #061730);
+      }
+
+      .focus h2 { margin: 0; font-size: 48px; }
+      .focus p { margin: 0; color: #93abc7; text-align: center; font-size: 31px; max-width: 360px; }
+
+      .right {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .citation-header {
+        border: 1px solid #1a2f53;
+        border-radius: 16px;
+        padding: 14px;
+        margin-bottom: 16px;
+      }
+
+      .citation-header h3 { margin: 0 0 8px; letter-spacing: 1px; font-size: 32px; }
+      .citation-header p { margin: 0; color: #7f95b5; font-size: 24px; }
+
+      .citation-list {
+        flex: 1;
+        overflow: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .citation-card {
+        border: 1px solid #1a2f53;
+        border-radius: 16px;
+        padding: 14px;
+        background: #0a1735;
+      }
+
+      .tag {
+        display: inline-block;
+        background: #0f3248;
+        color: #58ebcf;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      .citation-card h4 { font-size: 27px; margin: 10px 0 6px; }
+      .citation-card p { margin: 0; color: #91a8c7; font-style: italic; font-size: 24px; }
+
+      .meta { margin-top: 8px; color: #6c84a8; font-size: 20px; }
+      .upload-status { color: #66e9d2; font-size: 24px; min-height: 1.2em; }
+
+      .export {
+        margin-top: 16px;
+        border: 1px solid #1f365b;
+        border-radius: 12px;
+        padding: 12px;
+        text-align: center;
+        color: #c8d8f0;
+      }
     </style>
   </head>
   <body>
-    <div class="container">
-      <h1>Handbook Voice + Text RAG Assistant (MVP)</h1>
-
-      <div class="card">
-        <h3>1) Upload Handbook PDF</h3>
-        <input id="pdf" type="file" accept="application/pdf" />
-        <div class="row" style="margin-top: 8px">
-          <button onclick="uploadPdf()">Upload & Index</button>
-          <span id="uploadStatus"></span>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand"><span class="brand-badge"></span>PolicyAssistant AI</div>
+        <div class="top-actions">
+          <div class="status-pill">●&nbsp; Core Online</div>
         </div>
-      </div>
+      </header>
 
-      <div class="card">
-        <h3>2) Chat</h3>
-        <div class="row">
-          <button onclick="newSession()">New Session</button>
-          <button onclick="speakMode()">🎤 Dictate</button>
-          <span id="sessionInfo"></span>
-        </div>
-        <div class="chat" id="chat"></div>
-        <textarea id="message" rows="3" placeholder="Ask a handbook question..."></textarea>
-        <div class="row" style="margin-top: 8px">
-          <button onclick="sendMessage()">Send</button>
-        </div>
-      </div>
+      <aside class="left">
+        <div class="nav-item active">✦&nbsp;&nbsp;Assistant</div>
+        <div class="nav-item">⌘&nbsp;&nbsp;History</div>
+        <div class="nav-item">▣&nbsp;&nbsp;Library</div>
 
-      <div class="card">
-        <h3>Gemini Live (next step)</h3>
-        <p id="liveInfo">Loading live model config...</p>
-      </div>
+        <div class="spacer"></div>
+
+        <button class="upload" onclick="document.getElementById('pdf').click()">⬆ Upload Document</button>
+        <input id="pdf" type="file" accept="application/pdf" onchange="uploadPdf()" />
+        <div class="upload-status" id="uploadStatus"></div>
+
+        <div class="resource">
+          <div class="resource-title">RESOURCE LOAD</div>
+          <div class="bar"><span></span></div>
+        </div>
+      </aside>
+
+      <main class="center">
+        <section class="chat-col">
+          <div class="chat" id="chat"></div>
+          <div class="input-wrap">
+            <button class="icon-btn" onclick="newSession()" title="New Session">⟳</button>
+            <button class="icon-btn" onclick="speakMode()" title="Dictate">🎤</button>
+            <textarea id="message" rows="1" placeholder="Type your directive or policy question..."></textarea>
+            <button class="send" onclick="sendMessage()">➤</button>
+          </div>
+        </section>
+
+        <section class="focus">
+          <div class="orb"></div>
+          <h2>Active Intelligence</h2>
+          <p id="liveInfo">Loading policy context...</p>
+        </section>
+      </main>
+
+      <aside class="right">
+        <div class="citation-header">
+          <h3>✹&nbsp; CITATIONS</h3>
+          <p>Verified sources for current response context.</p>
+        </div>
+        <div class="citation-list" id="citations"></div>
+        <div class="export">⇪ Export Report</div>
+      </aside>
     </div>
 
     <script src="/main.js"></script>
