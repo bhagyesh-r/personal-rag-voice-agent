@@ -10,12 +10,13 @@
       .card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
       button { padding: 8px 12px; border-radius: 8px; border: 0; cursor: pointer; }
       input, textarea { width: 100%; margin-top: 8px; background: #0b1220; border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; padding: 10px; }
-      .row { display: flex; gap: 8px; align-items: center; }
+      .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
       .chat { max-height: 420px; overflow: auto; }
       .msg { padding: 10px; border-radius: 8px; margin-bottom: 8px; }
       .user { background: #1d4ed8; }
       .assistant { background: #065f46; }
       .citations { font-size: 12px; color: #cbd5e1; white-space: pre-wrap; }
+      .status { margin-top: 10px; color: #cbd5e1; font-size: 14px; }
     </style>
   </head>
   <body>
@@ -26,7 +27,7 @@
         <h3>1) Upload Handbook PDF</h3>
         <input id="pdf" type="file" accept="application/pdf" />
         <div class="row" style="margin-top: 8px">
-          <button onclick="uploadPdf()">Upload & Index</button>
+          <button id="uploadButton" type="button">Upload & Index</button>
           <span id="uploadStatus"></span>
         </div>
       </div>
@@ -34,23 +35,24 @@
       <div class="card">
         <h3>2) Chat</h3>
         <div class="row">
-          <button onclick="newSession()">New Session</button>
-          <button onclick="speakMode()">🎤 Dictate</button>
+          <button id="newSessionButton" type="button">New Session</button>
+          <button id="voiceToggleButton" type="button">Start Voice Assistant</button>
           <span id="sessionInfo"></span>
         </div>
+        <p class="status" id="voiceStatus">Voice assistant is off.</p>
         <div class="chat" id="chat"></div>
         <textarea id="message" rows="3" placeholder="Ask a handbook question..."></textarea>
         <div class="row" style="margin-top: 8px">
-          <button onclick="sendMessage()">Send</button>
+          <button id="sendButton" type="button">Send</button>
         </div>
       </div>
 
       <div class="card">
-        <h3>Gemini Live (next step)</h3>
+        <h3>Current Voice Setup</h3>
         <p id="liveInfo">Loading live model config...</p>
       </div>
     </div>
 
-    <script src="/main.js"></script>
+    <script type="module" src="/main.js"></script>
   </body>
 </html>

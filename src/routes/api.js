@@ -82,6 +82,6 @@ apiRouter.get('/live-config', (req, res) => {
   res.json({
     model: config.liveModel,
     note:
-      'Use this model from your client-side Gemini Live websocket flow. For MVP this repo ships text chat + mic-to-text UX. Full duplex live audio can be added next.'
+      'This app currently uses browser speech recognition and browser speech synthesis with the existing RAG /api/chat endpoint. No Gemini Live audio websocket session is running in the browser.'
   });
 });

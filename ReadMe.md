@@ -8,11 +8,12 @@ Node.js containerized MVP for querying a company handbook PDF using RAG.
 - Text chat endpoint grounded on handbook chunks only.
 - Citation-aware responses with page references.
 - Session memory in memory (Supabase persistence can be added later).
-- Starter voice UX (browser mic to text) and Gemini Live model config endpoint.
+- Browser voice assistant loop using speech recognition for mic input and speech synthesis for spoken handbook answers.
+- Voice assistant status endpoint describing the current browser voice + RAG setup.
 
 ## Confirmed model choices
 
-- Live conversation model: `gemini-3.1-flash-live-preview`
+- Configured Gemini Live model for future experiments: `gemini-3.1-flash-live-preview`
 - Embeddings model: `text-embedding-3-small`
 - Embedding dimensions: `1024` to match the current Pinecone index
 
@@ -67,4 +68,5 @@ Then open: <http://localhost:3000>
 ## Notes
 
 - MVP intentionally refuses to free-answer outside retrieved handbook context.
-- Live full-duplex audio loop with Gemini Live WebSocket is the next layer to add; current UI supports mic-to-text for quick internal testing.
+- Current UI uses browser speech recognition and browser speech synthesis with the existing `/api/chat` RAG flow.
+- The current browser experience does not open a Gemini Live WebSocket session.
